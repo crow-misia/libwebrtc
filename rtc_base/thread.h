@@ -342,6 +342,7 @@ class RTC_LOCKABLE RTC_EXPORT Thread : public webrtc::TaskQueueBase {
   // will be used only for reference-based comparison, so instance can be safely
   // deleted. If NDEBUG is defined and DCHECK_ALWAYS_ON is undefined do nothing.
   void AllowInvokesToThread(Thread* thread);
+
   // If NDEBUG is defined and DCHECK_ALWAYS_ON is undefined do nothing.
   void DisallowAllInvokes();
   // Returns true if |target| was allowed by AllowInvokesToThread() or if no
@@ -536,6 +537,7 @@ class RTC_LOCKABLE RTC_EXPORT Thread : public webrtc::TaskQueueBase {
  private:
   class QueuedTaskHandler final : public MessageHandler {
    public:
+    QueuedTaskHandler() : MessageHandler(false) {}
     void OnMessage(Message* msg) override;
   };
 
