@@ -393,7 +393,16 @@ class SctpTransport::UsrSctpWrapper {
                                  struct sctp_rcvinfo rcv,
                                  int flags,
                                  void* ulp_info) {
-    SctpTransport* transport = static_cast<SctpTransport*>(ulp_info);
+    SctpTransport* transport = GetTransportFromSocket(sock);
+    if (!transport) {
+      RTC_LOG(LS_ERROR)
+          << "OnSctpInboundPacket: Failed to get transport for socket " << sock
+          << "; possibly was already destroyed.";
+      return 0;
+    }
+    // Sanity check that both methods of getting the SctpTransport pointer
+    // yield the same result.
+    RTC_CHECK_EQ(transport, static_cast<SctpTransport*>(ulp_info));
     int result =
         transport->OnDataOrNotificationFromSctp(data, length, rcv, flags);
     free(data);
@@ -434,7 +443,7 @@ class SctpTransport::UsrSctpWrapper {
     if (!transport) {
       RTC_LOG(LS_ERROR)
           << "SendThresholdCallback: Failed to get transport for socket "
-          << sock;
+          << sock << "; possibly was already destroyed.";
       return 0;
     }
     transport->OnSendThresholdCallback();
@@ -1101,8 +1110,8 @@ int SctpTransport::OnDataOrNotificationFromSctp(void* data,
   // If data is NULL, the SCTP association has been closed.
   if (!data) {
     RTC_LOG(LS_INFO) << debug_name_
-                     << "->OnSctpInboundPacket(...): "
-                        "No data, closing.";
+                     << "->OnDataOrNotificationFromSctp(...): "
+                        "No data; association closed.";
     return kSctpSuccessReturn;
   }
 
@@ -1111,9 +1120,10 @@ int SctpTransport::OnDataOrNotificationFromSctp(void* data,
   //       be handled early and entirely separate from the reassembly
   //       process.
   if (flags & MSG_NOTIFICATION) {
-    RTC_LOG(LS_VERBOSE) << debug_name_
-                        << "->OnSctpInboundPacket(...): SCTP notification"
-                        << " length=" << length;
+    RTC_LOG(LS_VERBOSE)
+        << debug_name_
+        << "->OnDataOrNotificationFromSctp(...): SCTP notification"
+        << " length=" << length;
 
     // Copy and dispatch asynchronously
     rtc::CopyOnWriteBuffer notification(reinterpret_cast<uint8_t*>(data),
@@ -1127,7 +1137,7 @@ int SctpTransport::OnDataOrNotificationFromSctp(void* data,
   // Log data chunk
   const uint32_t ppid = rtc::NetworkToHost32(rcv.rcv_ppid);
   RTC_LOG(LS_VERBOSE) << debug_name_
-                      << "->OnSctpInboundPacket(...): SCTP data chunk"
+                      << "->OnDataOrNotificationFromSctp(...): SCTP data chunk"
                       << " length=" << length << ", sid=" << rcv.rcv_sid
                       << ", ppid=" << ppid << ", ssn=" << rcv.rcv_ssn
                       << ", cum-tsn=" << rcv.rcv_cumtsn
